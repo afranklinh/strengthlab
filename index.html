@@ -652,8 +652,20 @@ function openLibrary(){
 }
 function quickAdd(prefill){
   const v=prefill||{name:'',p:'',c:'',f:'',kcal:'',serv:''};
+  let measures=null;
+  if(v.base){
+    measures=(v.measures||[]).concat([
+      {label:'≈ deck of cards · 85 g',grams:85},
+      {label:'≈ palm of hand · 115 g',grams:115},
+      {label:'≈ fist · 230 g',grams:230},
+      {label:'100 g',grams:100}
+    ]);
+  }
   openModal('<h2>'+(prefill?esc(prefill.name):'Quick add')+'</h2><div class="formgrid">'
     +'<div class="fullw"><label>Name</label><input type="text" id="q_name" value="'+esc(v.name)+'"></div>'
+    +(measures?'<div class="fullw"><label>Portion</label><select id="q_m">'
+      +measures.map((m,i)=>'<option value="'+i+'">'+esc(m.label)+'</option>').join('')+'</select></div>'
+      +'<div><label>Grams</label><input type="number" id="q_g" inputmode="decimal" value="'+Math.round(measures[0].grams)+'"></div>':'')
     +'<div><label>Protein g</label><input type="number" id="q_p" inputmode="decimal" value="'+v.p+'"></div>'
     +'<div><label>Carbs g</label><input type="number" id="q_c" inputmode="decimal" value="'+v.c+'"></div>'
     +'<div><label>Fat g</label><input type="number" id="q_f" inputmode="decimal" value="'+v.f+'"></div>'
@@ -664,6 +676,23 @@ function quickAdd(prefill){
     +'<input type="checkbox" id="q_save" style="width:auto" checked> Save to library</label>'
     +'<button class="bigbtn" id="q_log">Log it</button>'
     +'<button class="bigbtn gray" onclick="closeModal()">Cancel</button>');
+  if(measures){
+    const apply=()=>{
+      const g=parseFloat($('#q_g').value)||0;const s=g/100;
+      $('#q_p').value=Math.round(v.base.p*s*10)/10;
+      $('#q_c').value=Math.round(v.base.c*s*10)/10;
+      $('#q_f').value=Math.round(v.base.f*s*10)/10;
+      $('#q_k').value=Math.round(v.base.kcal*s);
+    };
+    $('#q_m').onchange=()=>{
+      const m=measures[Number($('#q_m').value)];
+      $('#q_g').value=Math.round(m.grams);
+      $('#q_s').value=m.label;
+      apply();};
+    $('#q_g').addEventListener('input',apply);
+    $('#q_s').value=measures[0].label;
+    apply();
+  }
   $('#q_log').onclick=()=>{
     const p=parseFloat($('#q_p').value)||0,c=parseFloat($('#q_c').value)||0,f=parseFloat($('#q_f').value)||0;
     let k=parseFloat($('#q_k').value);if(!k&&k!==0)k=Math.round(p*4+c*4+f*9);
@@ -693,9 +722,16 @@ function usdaSearch(){
         const n={};for(const nu of (fd.foodNutrients||[])){
           if(nu.nutrientId===1003)n.p=nu.value;if(nu.nutrientId===1005)n.c=nu.value;
           if(nu.nutrientId===1004)n.f=nu.value;if(nu.nutrientId===1008)n.kcal=nu.value;}
+        const base={p:n.p||0,c:n.c||0,f:n.f||0,kcal:n.kcal||((n.p||0)*4+(n.c||0)*4+(n.f||0)*9)};
+        const measures=[];
+        if(fd.servingSize&&/^(g|GRM|grm)$/i.test(fd.servingSizeUnit||''))
+          measures.push({label:(fd.householdServingFullText||'1 serving')+' · '+Math.round(fd.servingSize)+' g',grams:fd.servingSize});
+        for(const m of (fd.foodMeasures||[]))
+          if(m.gramWeight)measures.push({label:(m.disseminationText||'portion')+' · '+Math.round(m.gramWeight)+' g',grams:m.gramWeight});
         return {name:fd.description+(fd.brandOwner?' ('+fd.brandOwner+')':''),
-          p:Math.round((n.p||0)*10)/10,c:Math.round((n.c||0)*10)/10,f:Math.round((n.f||0)*10)/10,
-          kcal:Math.round(n.kcal||((n.p||0)*4+(n.c||0)*4+(n.f||0)*9)),serv:'per 100 g'};});
+          base,measures:measures.slice(0,5),
+          p:Math.round(base.p*10)/10,c:Math.round(base.c*10)/10,f:Math.round(base.f*10)/10,
+          kcal:Math.round(base.kcal),serv:'per 100 g'};});
       $('#u_res').innerHTML=window._usdaResults.map((it,i)=>
         '<div class="sumrow" style="cursor:pointer" data-upick="'+i+'"><div><b>'+esc(it.name)+'</b>'
         +'<div style="font-size:12px;color:var(--dim)">per 100 g · '+it.p+'P/'+it.c+'C/'+it.f+'F · '+it.kcal+' kcal</div></div><span>＋</span></div>').join('');
